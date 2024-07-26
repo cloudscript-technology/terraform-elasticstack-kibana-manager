@@ -72,12 +72,12 @@ module "create_alert" {
   kibana_api        = "api/alerting/rule"
   http_method       = "POST"
   request_body      = jsonencode({
-    name = "[App] [Payments-Staging] 🚨 Critical: High API Latency",
+    name = "[App] [Production] 🚨 Critical: High API Latency",
     consumer = "alerts",
     producer = "apm",
     alertTypeId = "apm.transaction_duration",
     params = {
-      environment = "ENVIRONMENT_ALL",
+      environment = "production",
       serviceName = "*",
       aggregationType = "avg",
       threshold = 500,
@@ -97,8 +97,8 @@ module "create_alert" {
         subActionParams = {
           alias = "{{rule.id}}:{{alert.id}}",
           tags = ["{{rule.tags}}"],
-          message = "[App] [Payments-Staging] 🚨 Critical: High API Latency - {{context.serviceName}}",
-          description = "🚨 [Alert]: {{rule.name}}\n📅 **Data e Hora:** {{context.timestamp}}\n🏷️ **Application:** {{context.serviceName}}\n📊 **Nome da Transação:** {{context.transactionName}}\n- **Threshold:** {{context.threshold}}\n📈 **Valor Atual:** {{context.triggerValue}} over the last {{context.interval}}\n🌐 **Ambiente:** {{context.environment}}\n🔗 **URL de Detalhes:** [Link]({{context.alertDetailsUrl}})\n\n📌 **Ação Sugerida:**\n1. Verificar os logs da aplicação para identificar possíveis causas de alta latência.\n2. Conferir o uso de recursos da infraestrutura (CPU, memória).\n3. Analisar o código da transação para otimizações possíveis.\n\n📋 **Comentários Adicionais:**\n- Verifique se há algum deploy recente ou mudança na infraestrutura.",
+          message = "[App] [Production] 🚨 Critical: High API Latency",
+          description = "📊 Nome da Transação: {{context.transactionName}}\n📈 Threshold: {{context.threshold}} over the last {{context.interval}}\n🌐 Ambiente: {{context.environment}}\n🔗 URL de Detalhes: [Link]({{context.alertDetailsUrl}})\n\n📌 Ação Sugerida:\n1. Verificar os logs da aplicação para identificar possíveis causas de alta latência.\n2. Conferir o uso de recursos da infraestrutura (CPU, memória).\n3. Analisar o código da transação para otimizações possíveis.\n\n📋 Comentários Adicionais:\n- Verifique se há algum deploy recente ou mudança na infraestrutura.",
           entity = "{{context.serviceName}}",
           source = "{{rule.url}}"
         }
@@ -124,18 +124,18 @@ module "create_slo" {
   kibana_api        = "api/observability/slos"
   http_method       = "POST"
   request_body      = jsonencode({
-    name = "[App] [Payments-Production] ⏱️ SLO: Response Time < 250ms P95",
-    description = "Indica que 95% das requisições à payments-API no ambiente de produção devem ter um tempo de resposta inferior a 250ms.",
+    name = "[App] [Production] ⏱️ SLO: Response Time < 250ms",
+    description = "Indica que 95% das requisições à core-api no ambiente de produção devem ter um tempo de resposta inferior a 250ms.",
     indicator = {
       type = "sli.apm.transactionDuration",
       params = {
-        service = "payments-api",
+        service = "core-api",
         environment = "production",
         transactionType = "request",
         transactionName = "*",
         threshold = 250,
-        filter = "service.environment:production",
-        index = "*apm*afya-payments-production*"
+        filter = "",
+        index = "*apm*core-production*"
       }
     },
     budgetingMethod = "occurrences",
@@ -146,7 +146,7 @@ module "create_slo" {
     objective = {
       target = 0.95
     },
-    tags = ["payments-api", "response-time", "production"]
+    tags = ["core-api", "response-time", "production"]
   })
 }
 ```

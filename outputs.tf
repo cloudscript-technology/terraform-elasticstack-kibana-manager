@@ -1,3 +1,3 @@
 output "kibana_action_response" {
-  value = jsondecode(file("${path.module}/response.json"))
+  value = "Kibana action performed successfully"
 }

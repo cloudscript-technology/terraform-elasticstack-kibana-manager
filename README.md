@@ -7,13 +7,12 @@
 
 ## Description
 
-This Terraform module allows you to create and manage connectors, alerts, and SLOs in Kibana using the `null` provider. It offers various configuration options through input variables to customize the creation and management of these resources as needed.
+This Terraform module allows you to create and manage connectors and alerts in Kibana using the `elasticstack` provider. It offers various configuration options through input variables to customize the creation and management of these resources as needed.
 
 ## Features
 
 - Creation of connectors in Kibana
 - Configuration of alerts in Kibana
-- Setup of SLOs (Service Level Objectives) in Kibana
 - Support for specifying Kibana spaces
 
 ## Usage
@@ -26,7 +25,21 @@ This Terraform module allows you to create and manage connectors, alerts, and SL
 ### Providers
 
 ```hcl
-provider "null" {}
+terraform {
+  required_providers {
+    elasticstack = {
+      source  = "elastic/elasticstack"
+      version = "0.11.4"
+    }
+  }
+}
+
+provider "elasticstack" {
+  kibana {
+    api_key  = var.kibana_api_key
+    endpoint = var.kibana_endpoint
+  }
+}
 ```
 
 ### Example Configuration
@@ -38,24 +51,11 @@ module "create_opsgenie_connector" {
   source            = "./modules/kibana_manager"
   kibana_endpoint   = var.kibana_endpoint
   kibana_api_key    = var.kibana_api_key
-  kibana_space      = var.kibana_space
-
-  actions = [
-    {
-      http_method  = "POST"
-      kibana_api   = "api/actions/connector"
-      request_body = jsonencode({
-        name = "Opsgenie Connector",
-        connector_type_id = ".opsgenie",
-        config = {
-          apiUrl = "https://api.opsgenie.com"
-        },
-        secrets = {
-          apiKey = var.opsgenie_api_key
-        }
-      })
-    }
-  ]
+  space_id          = var.space_id
+  create_connector  = true
+  connector_name    = "Opsgenie Connector"
+  opsgenie_api_url  = "https://api.opsgenie.com"
+  opsgenie_api_key  = var.opsgenie_api_key
 }
 ```
 
@@ -66,94 +66,70 @@ module "create_alert" {
   source            = "./modules/kibana_manager"
   kibana_endpoint   = var.kibana_endpoint
   kibana_api_key    = var.kibana_api_key
-  kibana_space      = var.kibana_space
+  space_id          = var.space_id
 
-  actions = [
+  create_connector  = false
+  create_alerts     = true
+
+  alerts = [
     {
-      http_method  = "POST"
-      kibana_api   = "api/alerting/rule"
-      request_body = jsonencode({
-        name = "[App] [Production] 🚨 Critical: High API Latency",
-        consumer = "alerts",
-        producer = "apm",
-        alertTypeId = "apm.transaction_duration",
-        params = {
-          environment = "production",
-          serviceName = "*",
-          aggregationType = "avg",
-          threshold = 500,
-          windowSize = 5,
-          windowUnit = "m",
-          groupBy = ["service.name", "service.environment", "transaction.type"]
-        },
-        schedule = {
-          interval = "2m"
-        },
-        tags = ["apm"],
-        actions = [{
-          group = "threshold_met",
-          id = "6b9bffa8-5fbb-457e-a7f3-714396ccd094",
+      name         = "[App] [Staging] [SRE] 🚨 Critical: Application Error 504 Rate Surge"
+      consumer     = "infrastructure"
+      rule_type_id = "observability.rules.custom_threshold"
+      interval     = "2m"
+      enabled      = true
+      notify_when  = "onActionGroupChange"
+      params       = {
+        criteria = [
+          {
+            comparator = "<"
+            metrics    = [
+              {
+                name    = "A"
+                aggType = "count"
+              }
+            ]
+            threshold = [1]
+            timeSize  = 5
+            timeUnit  = "m"
+          }
+        ]
+        alertOnNoData           = false
+        alertOnGroupDisappear   = true
+        searchConfiguration = {
+          query = {
+            query    = "http.response.status_code : 504"
+            language = "kuery"
+          }
+          index = "apm_static_data_view_id-staging"
+        }
+        groupBy = ["service.name", "service.environment", "transaction.name"]
+      }
+      actions = [
+        {
+          id    = module.create_opsgenie_connector.connector_id
+          group = "custom_threshold.fired"
           params = {
-            subAction = "createAlert",
+            subAction = "createAlert"
             subActionParams = {
-              alias = "{{rule.id}}:{{alert.id}}",
-              tags = ["{{rule.tags}}"],
-              message = "[App] [Production] 🚨 Critical: High API Latency",
-              description = "📊 Nome da Transação: {{context.transactionName}}\n📈 Threshold: {{context.threshold}} over the last {{context.interval}}\n🌐 Ambiente: {{context.environment}}\n🔗 URL de Detalhes: [Link]({{context.alertDetailsUrl}})\n\n📌 Ação Sugerida:\n1. Verificar os logs da aplicação para identificar possíveis causas de alta latência.\n2. Conferir o uso de recursos da infraestrutura (CPU, memória).\n3. Analisar o código da transação para otimizações possíveis.\n\n📋 Comentários Adicionais:\n- Verifique se há algum deploy recente ou mudança na infraestrutura.",
-              entity = "{{context.serviceName}}",
-              source = "{{rule.url}}"
+              alias       = "{{rule.id}}:service-name"
+              tags        = ["{{rule.tags}}"]
+              message     = "[App] [Staging] [SRE] [P1]: Application Error 504 Rate Surge - service-name"
+              description = "📈 Threshold: {{context.threshold}} errors over the last {{context.interval}}\n🌐 Ambiente: {{context.service.environment}}\n\n📌 Ação Sugerida:\n1. Verificar os logs da aplicação para identificar a causa raiz dos erros.\n2. Conferir a disponibilidade dos serviços dependentes (bancos de dados, APIs externas).\n3. Realizar um rollback se um deploy recente for suspeito.\n\n📋 Comentários Adicionais:\n- Observe se há padrões nos tipos de erros relatados."
+              entity      = "service-name"
+              source      = "{{context.alertDetailsUrl}}"
+              priority    = "P1"
+              responders  = [
+                {
+                  name = "CloudScript"
+                  type = "team"
+                }
+              ]
             }
-          },
-          frequency = {
-            notify_when = "onActionGroupChange",
-            throttle = null,
-            summary = false
           }
-        }]
-      })
-    }
-  ]
-}
-```
-
-#### Create SLO
-
-```hcl
-module "create_slo" {
-  source            = "./modules/kibana_manager"
-  kibana_endpoint   = var.kibana_endpoint
-  kibana_api_key    = var.kibana_api_key
-  kibana_space      = var.kibana_space
-
-  actions = [
-    {
-      http_method  = "POST"
-      kibana_api   = "api/observability/slos"
-      request_body = jsonencode({
-        name = "[App] [Production] ⏱️ SLO: Response Time < 250ms",
-        description = "Indica que 95% das requisições à core-api no ambiente de produção devem ter um tempo de resposta inferior a 250ms.",
-        indicator = {
-          type = "sli.apm.transactionDuration",
-          params = {
-            service = "core-api",
-            environment = "production",
-            transactionType = "request",
-            transactionName = "*",
-            threshold = 250,
-            filter = "",
-            index = "*apm*core-production*"
-          }
-        },
-        budgetingMethod = "occurrences",
-        timeWindow = {
-          duration = "7d",
-          type = "rolling"
-        },
-        objective = {
-          target = 0.95
-        },
-        tags = ["core-api", "response-time", "production"]
-      })
+        }
+      ]
+      tags = ["gateway-staging", "elastic-apm", "Responders: CloudScript"]
     }
   ]
 
@@ -166,15 +142,21 @@ module "create_slo" {
 |-------------------|--------|-----------------------------------------------------------------------------------------------------------|------------------------------|----------|
 | `kibana_endpoint` | string | The Kibana endpoint URL                                                                                   | n/a                          | yes      |
 | `kibana_api_key`  | string | The API key for Kibana                                                                                    | n/a                          | yes      |
-| `kibana_space`    | string | The Kibana space where the action will be performed                                                       | n/a                          | yes      |
-| `actions`         | list   | List of actions to be created in Kibana. Each action includes `http_method`, `kibana_api`, and `request_body` | n/a                          | yes      |
-
+| `space_id`        | string | The Kibana space where the action will be performed                                                       | n/a                          | yes      |
+| `create_connector`| bool   | Whether to create the Opsgenie connector                                                                  | false                        | no       |
+| `connector_name`  | string | The name of the Opsgenie connector                                                                        | "opsgenie-connector"         | no       |
+| `opsgenie_api_url`| string | The Opsgenie API URL                                                                                      | "https://api.opsgenie.com"   | no       |
+| `opsgenie_api_key`| string | The API key for Opsgenie                                                                                  | n/a                          | yes      |
+| `create_alerts`   | bool   | Whether to create the alerts                                                                              | false                        | no       |
+| `alerts`          | list   | A list of alerts to create in Kibana. Each alert includes name, consumer, rule_type_id, interval, params, actions | n/a                          | yes      |
 
 ### Outputs
 
-| Name                        | Description                                |
-|-----------------------------|--------------------------------------------|
-| `kibana_action_response`    | The response body of the Kibana action     |
+| Name             | Description                                      |
+|------------------|--------------------------------------------------|
+| `connector_id`   | The ID of the created Opsgenie connector         |
+| `connector_name` | The name of the created Opsgenie connector       |
+| `alert_ids`      | The IDs of the created alerts                    |
 
 ## Contributions
 
@@ -199,4 +181,3 @@ This module is maintained by [CloudScript Technology](https://github.com/cloudsc
 - [Kibana API Documentation](https://www.elastic.co/guide/en/kibana/current/api.html)
 - [Terraform Documentation](https://www.terraform.io/docs)
 - [Opsgenie API Documentation](https://docs.opsgenie.com/docs/api-overview)
-

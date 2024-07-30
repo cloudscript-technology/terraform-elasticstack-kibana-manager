@@ -178,6 +178,5 @@ This module is maintained by [CloudScript Technology](https://github.com/cloudsc
 
 ## References
 
-- [Kibana API Documentation](https://www.elastic.co/guide/en/kibana/current/api.html)
+- [ElasticStack Provider](https://registry.terraform.io/providers/elastic/elasticstack/latest)
 - [Terraform Documentation](https://www.terraform.io/docs)
-- [Opsgenie API Documentation](https://docs.opsgenie.com/docs/api-overview)

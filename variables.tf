@@ -57,6 +57,7 @@ variable "alerts" {
     enabled      = bool
     notify_when  = string
     params       = any
+    tags         = any
     actions      = list(object({
       id     = string
       group  = string

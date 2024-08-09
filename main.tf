@@ -36,4 +36,5 @@ resource "elasticstack_kibana_alerting_rule" "alert" {
   }
 
   space_id = var.space_id
+  tags     = var.alerts[count.index].tags
 }

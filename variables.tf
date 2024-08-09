@@ -63,22 +63,4 @@ variable "alerts" {
       params = any
     }))
   }))
-  default = [
-    {
-      name         = "[APM][Payments][Staging][SRE][P1][🚨]: Application Error Rate Surge"
-      consumer     = "infrastructure"
-      rule_type_id = "observability.rules.custom_threshold"
-      interval     = "2m"
-      enabled      = true
-      notify_when  = "onActionGroupChange"
-      params       = {}
-      actions      = [
-        {
-          id      = "123456"
-          group   = "service"
-          params  = {}
-        }
-      ]
-    }
-  ]
 }

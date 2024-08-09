@@ -45,5 +45,6 @@ locals {
         }
       ]
     }
+    group = "custom_threshold.fired"
   }
 }

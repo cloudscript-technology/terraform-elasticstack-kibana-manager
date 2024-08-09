@@ -63,4 +63,15 @@ variable "alerts" {
       params = any
     }))
   }))
+  default = [
+    {
+      consumer     = "infrastructure"
+      rule_type_id = "observability.rules.custom_threshold"
+      interval     = "2m"
+      enabled      = true
+      notify_when  = "onActionGroupChange"
+      params       = {}
+      actions      = []
+    }
+  ]
 }

@@ -30,7 +30,7 @@ resource "elasticstack_kibana_alerting_rule" "alert" {
     for_each = var.alerts[count.index].actions
     content {
       id    = actions.value.id
-      group = actions.value.group
+      group = merge(local.default_action_params, actions.value).group
       params = jsonencode(merge(local.default_action_params, actions.value.params))
     }
   }
